@@ -116,3 +116,4 @@ logs/
 .vscode/
 .venv/
 notes.txt
+.DS_Store
