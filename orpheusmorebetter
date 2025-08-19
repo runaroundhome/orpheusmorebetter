@@ -408,6 +408,10 @@ def main():
         # FILE PATH RESOLUTION
         # ====================================================================
         # Handle different file path scenarios (single file vs directory)
+        # Initialize variables before loops
+        flac_file = None
+        flac_dir = None
+
         if torrent["filePath"] is None:
             # Single file torrent - need to create directory structure
             for d in data_dir:
@@ -416,9 +420,10 @@ def main():
                 )
 
                 if not os.path.exists(flac_file):
+                    flac_file = None  # Reset if not found
                     continue
 
-                # Create standardized directory name
+                # Create directory and copy file
                 flac_dir = os.path.join(
                     d,
                     "{0} ({1}) [FLAC]".format(
@@ -432,15 +437,23 @@ def main():
                 shutil.copy(flac_file, flac_dir)
                 break
 
-            if not os.path.exists(flac_file):
-                logger.warning("Path not found - skipping: {0}".format(flac_file))
+            if flac_file is None:
+                logger.warning("FLAC file not found - skipping torrent {0}".format(torrentid))
                 continue
+
         else:
             # Directory-based torrent - find existing directory
             for d in data_dir:
                 flac_dir = os.path.join(d, html.unescape(torrent["filePath"]))
                 if os.path.exists(flac_dir):
                     break
+            else:
+                # Loop completed without finding directory
+                flac_dir = None
+
+            if flac_dir is None:
+                logger.warning("FLAC directory not found - skipping torrent {0}".format(torrentid))
+                continue
 
         # ====================================================================
         # 24-BIT AUDIO HANDLING
