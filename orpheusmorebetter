@@ -326,7 +326,7 @@ def main():
             seen: set = pickle.load(f)
     except OSError:
         # If the cache file doesn't exist, create a new one
-        print("Cache file not found, creating a new one.")
+        logger.info("Cache file not found, creating a new one.")
         with open(args.cache, "wb") as f:
             seen: set = set()
             pickle.dump(set(), f)
