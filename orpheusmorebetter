@@ -443,10 +443,21 @@ def main():
 
         else:
             # Directory-based torrent - find existing directory
+            matching_dirs = []
             for d in data_dir:
-                flac_dir = os.path.join(d, html.unescape(torrent["filePath"]))
-                if os.path.exists(flac_dir):
-                    break
+                potential_dir = os.path.join(d, html.unescape(torrent["filePath"]))
+                if os.path.exists(potential_dir):
+                    matching_dirs.append(potential_dir)
+            
+            # Check for multiple matches
+            if len(matching_dirs) > 1:
+                logger.error("Multiple FLAC directories found for torrent {0}: {1}".format(
+                    torrentid, ', '.join(matching_dirs)
+                ))
+                logger.error("Exiting script due to ambiguous directory matches")
+                sys.exit(1)
+            elif len(matching_dirs) == 1:
+                flac_dir = matching_dirs[0]
             else:
                 # Loop completed without finding directory
                 flac_dir = None
