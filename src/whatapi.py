@@ -307,7 +307,7 @@ class WhatAPI:
         torrent: Dict[str, str],
         new_torrent: str,
         format: str,
-        description: Optional[str] = None,
+        description: Optional[List[str]] = None,
     ):
         files = {
             "file_input": (
