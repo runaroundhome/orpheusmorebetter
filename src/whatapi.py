@@ -394,17 +394,14 @@ class WhatAPI:
             r'(torrents\.php\?action=download&(?:amp;)?id=(\d+)[^"]*).*(torrents\.php\?id=\d+(?:&amp;|&)torrentid=\2\#torrent\d+)',
             re.DOTALL,
         )
-        out: List[Dict[str, str]] = []
+        out: List[Dict[str, Union[str, int]]] = []
         data = self.get_html("better.php?action=transcode&type=type")
 
-        torrent: str
-        perma: str
-        id: str
-        for torrent, id, perma in p.findall(data):
+        for torrent, torrent_id, perma in p.findall(data):
             out.append(
                 {
                     "permalink": perma.replace("&amp;", "&"),
-                    "id": int(id),
+                    "id": int(torrent_id),
                     "torrent": torrent.replace("&amp;", "&"),
                 }
             )
