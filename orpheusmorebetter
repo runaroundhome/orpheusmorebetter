@@ -102,7 +102,7 @@ def formats_needed(group, torrent, supported_formats):
     ]
     
     # Filter by what's allowed to be transcoded
-    allowed_formats = whatapi.allowed_transcodes(torrent)
+    allowed_formats = whatapi.allowed_transcodes(torrent["remasterTitle"])
     return [format for format in missing_formats if format in allowed_formats]
 
 

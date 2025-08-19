@@ -30,7 +30,7 @@ LOGGER = logging.getLogger("api")
 def allowed_transcodes(torrent: str) -> List[str]:
     """Some torrent types have transcoding restrictions."""
     preemphasis = re.search(
-        r"pre[- ]?emphasi(s(ed)?|zed)", torrent["remasterTitle"], flags=re.IGNORECASE
+        r"pre[- ]?emphasi(s(ed)?|zed)", torrent, flags=re.IGNORECASE
     )
     if preemphasis:
         return []
@@ -269,7 +269,7 @@ class WhatAPI:
                 "Unsupported media type {0}".format((media - lossless_media).pop())
             )
 
-        if not mode in ("snatched", "uploaded", "both", "all", "seeding"):
+        if mode not in ("snatched", "uploaded", "both", "all", "seeding"):
             raise ValueError("Unsupported candidate mode {0}".format(mode))
 
         # gazelle doesn't currently support multiple values per query
