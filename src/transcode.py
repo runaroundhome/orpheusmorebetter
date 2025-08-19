@@ -240,13 +240,10 @@ def transcode(flac_file, output_dir, output_format):
 
     if not os.path.exists(path.dirname(transcode_file)):
         try:
-            os.makedirs(path.dirname(transcode_file))
+            os.makedirs(path.dirname(transcode_file), exist_ok=True)
         except OSError as e:
-            if e.errno == errno.EEXIST:
-                # Harmless race condition -- another transcode process
-                # beat us here.
-                pass
-            else:
+            # Handle other OS errors that aren't about directory existing
+            if e.errno != errno.EEXIST:
                 raise e
 
     commands = list(
