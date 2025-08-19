@@ -3,7 +3,6 @@ import re
 import time
 import requests
 import logging
-import re
 from bs4 import BeautifulSoup, Tag
 
 from typing import Optional, List, Dict, Any, Set, Union, Literal
