@@ -324,17 +324,25 @@ def get_transcode_dir(flac_dir, output_dir, output_format, resample) -> str:
         "24-BIT",
     ]
 
+    # Track if we replaced a FLAC identifier with the format
+    format_replaced = False
+
     for flac in list_of_flac:
         if flac in flac_dir.upper():
             transcode_dir = replace_insensitive(flac, output_format, transcode_dir)
+            format_replaced = True
             break
 
     for flac in list_of_24_flac:
         if some_check(flac):
             transcode_dir = replace_insensitive(flac, output_format, transcode_dir)
+            format_replaced = True
             break
 
-    transcode_dir = f"{transcode_dir}({output_format})"
+    # Only append format in parentheses if we didn't already replace a FLAC identifier
+    if not format_replaced:
+        transcode_dir = f"{transcode_dir}({output_format})"
+    
     if output_format != "FLAC":
         transcode_dir = replace_insensitive("FLAC", "", transcode_dir)
 
