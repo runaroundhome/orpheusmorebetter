@@ -394,6 +394,14 @@ def main():
         group = api.request_ajax("torrentgroup", id=groupid)
         torrent = [t for t in group["torrents"] if t["id"] == torrentid][0]
 
+        # Basic check if scene (skip if scene release)
+        if torrent and torrent.get("scene"):
+            logger.warning("This release is scene, skipping.")
+            continue
+        if torrent and torrent.get("reported"):
+            logger.warning("This torrent is reported! Skipping.")
+            continue
+        
         # Log release information
         release = "Release found: {0} ({1})".format(
             html.unescape(group["group"]["name"]), group["group"]["year"]
