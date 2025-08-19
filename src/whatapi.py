@@ -212,7 +212,7 @@ class WhatAPI:
         self,
         type: Literal["snatched", "uploaded"],
         media_params: List[str],
-        skip: Optional[List[str]],
+        skip: Optional[Set[str]],
     ):
         LOGGER.info(f"Finding {type} torrents")
         url = f"{self.base_url}/torrents.php?type={type}&userid={self.user_id}&format=FLAC"
@@ -250,7 +250,7 @@ class WhatAPI:
                         group_id: str = match.group(1)
                         torrent_id: str = match.group(2)
 
-                        if skip is not None and torrent_id in skip:
+                        if skip is not None and str(torrent_id) in skip:
                             continue
 
                         yield int(group_id), int(torrent_id)
@@ -261,7 +261,7 @@ class WhatAPI:
     def get_candidates(
         self,
         mode: str,
-        skip: Optional[List[str]] = None,
+        skip: Optional[Set[str]] = None,
         media: Set[str] = lossless_media,
     ):
         if not media.issubset(lossless_media):
@@ -298,7 +298,7 @@ class WhatAPI:
             pattern = re.compile(r"torrents.php\?groupId=(\d+)&torrentid=(\d+)#\d+")
             content = self.get_html(url)
             for group_id, torrent_id in pattern.findall(content):
-                if skip is None or torrent_id not in skip:
+                if skip is None or str(torrent_id) not in skip:
                     yield int(group_id), int(torrent_id)
 
     def upload(
