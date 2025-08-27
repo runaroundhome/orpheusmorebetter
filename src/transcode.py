@@ -99,7 +99,7 @@ def validate_artist_album_match(flac_dir, group_info=None, torrent_info=None):
         expected_artist_norm = normalize_string_for_comparison(expected_artist)
         expected_album_norm = normalize_string_for_comparison(expected_album)
         
-        LOGGER.info(f"Validating files against expected artist: '{expected_artist}', album: '{expected_album}'")
+        LOGGER.info(f"    Validating files against expected artist: '{expected_artist}', album: '{expected_album}'")
         
         # Check a few FLAC files to validate artist/album
         flac_files = list(locate(flac_dir, ext_matcher(".flac")))
