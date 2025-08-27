@@ -316,14 +316,45 @@ class WhatAPI:
             yield from self.crawl_torrents_php("uploaded", media_params, skip)
 
         if mode == "seeding" or mode == "all":
-            LOGGER.info("Using better.php to find Seeding")
+            LOGGER.info("Using better.php to find Seeding torrents")
             url = "{0}/better.php?method=transcode&filter=seeding".format(self.base_url)
-            pattern = re.compile(r"torrents.php\?groupId=(\d+)&torrentid=(\d+)#\d+")
+            LOGGER.info(f"Fetching URL: {url}")
+            
+            pattern = re.compile(r"torrents\.php\?id=(\d+)&(?:amp;)?torrentid=(\d+)#torrent\d+")
             content = self.get_html(url)
-            for group_id, torrent_id in pattern.findall(content):
+            
+            LOGGER.debug(f"Received {len(content)} bytes of content from better.php")
+            
+            # Find all matches
+            matches = pattern.findall(content)
+            LOGGER.info(f"Found {len(matches)} potential seeding candidates from better.php")
+            
+            processed_count = 0
+            skipped_count = 0
+            
+            for group_id, torrent_id in matches:
+                LOGGER.debug(f"Found candidate: group_id={group_id}, torrent_id={torrent_id}")
+                
                 if skip is None or str(torrent_id) not in skip:
+                    LOGGER.debug(f"Processing torrent_id={torrent_id}")
+                    processed_count += 1
                     yield int(group_id), int(torrent_id)
-
+                else:
+                    LOGGER.debug(f"Skipping already processed torrent_id={torrent_id}")
+                    skipped_count += 1
+            
+            LOGGER.info(f"Seeding mode results: {processed_count} new candidates, {skipped_count} already processed")
+            
+            # Additional debugging: check if better.php content looks correct
+            if len(matches) == 0:
+                        LOGGER.warning("No matches found in better.php content")
+                        if "login" in content.lower():
+                            LOGGER.error("better.php returned login page - authentication may have failed")
+                        elif "better.php" not in content.lower():
+                            LOGGER.warning("better.php content doesn't seem to be the expected page")
+                        else:
+                            LOGGER.info("better.php content looks valid but no transcode candidates found")
+                            LOGGER.debug(f"Content preview: {content}")        
     def upload(
         self,
         group: Dict[str, Dict[str, str]],
