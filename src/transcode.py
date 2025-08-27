@@ -71,6 +71,10 @@ def run_pipeline(cmds):
     finally:
         signal.signal(signal.SIGPIPE, sigpipe_handler)
 
+    # Handle empty command list case
+    if last_proc is None:
+        return []
+
     last_stderr = last_proc.communicate()[1]
 
     results = []
@@ -479,8 +483,10 @@ def transcode_release(
     # transcode_dir is a new directory created exclusively for this
     # transcode. Do not change this assumption without considering the
     # consequences!
-    transcode_dir = get_transcode_dir(flac_dir, output_dir, output_format, resample)
-    logging.info("    " + transcode_dir)
+    transcode_dir = get_transcode_dir(
+        flac_dir, output_dir, output_format, resample, group_info, torrent_info
+    )
+    logging.info("    transcode_dir: " + transcode_dir)
     if not os.path.exists(transcode_dir):
         os.makedirs(transcode_dir)
     else:
@@ -537,7 +543,7 @@ def make_torrent(input_dir, output_dir, tracker, passkey, source):
     if not path.exists(path.dirname(torrent)):
         os.makedirs(path.dirname(torrent))
     tracker_url = f"{tracker}{passkey}/announce"
-    if source == None:
+    if source is None:
         command = ["mktorrent", "-p", "-a", tracker_url, "-o", torrent, input_dir]
     else:
         command = ["mktorrent", "-p", "-s", source, "-a", tracker_url, "-o", torrent, input_dir]
