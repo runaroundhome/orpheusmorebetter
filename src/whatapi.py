@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, Tag
 from typing import Optional, List, Dict, Any, Set, Union, Literal
 
 from models.formats import perfect_three
+from _version import __version__
 
 # gazelle is picky about case in searches with &media=x
 media_search_map = {
@@ -65,6 +66,10 @@ class WhatAPI:
         self.min_sec_between_requests = 5.0
 
         self.session = requests.Session()
+
+        # Set custom User-Agent header
+        self.session.headers.update({"User-Agent": f"orpheusmorebetter {__version__}"})
+        
         self._login()
         self.authkey = ""
 
