@@ -429,10 +429,19 @@ def get_transcode_dir(flac_dir, output_dir, output_format, resample, group_info=
             .get("name", "")
         )
         album = group.get("name", "")
-        year = group.get("year", "")
         
-        # If artist is not found in group_info, try torrent_info???
-        # TODO: exist out, and I need to fix this issue
+        # For remastered releases, prefer torrent remaster info over group info
+        if torrent_info.get('remastered'):
+            # Use remasterYear if available, otherwise fall back to group year
+            if torrent_info.get('remasterYear'):
+                year = str(torrent_info.get('remasterYear'))
+            else:
+                year = str(group.get("year", ""))
+        else:
+            # For non-remastered releases, use group year
+            year = str(group.get("year", ""))
+        
+        # If artist is not found in group_info, try torrent_info??? probs nothing there either
         if not artist:
             LOGGER.info("No artist found in group_info")
             LOGGER.info(f"group_info: {group_info}")
@@ -447,8 +456,10 @@ def get_transcode_dir(flac_dir, output_dir, output_format, resample, group_info=
         # Add edition info if this is a remaster
         edition_parts = []
         if torrent_info.get('remastered'):
-            if torrent_info.get('remasterTitle'):
-                edition_parts.append(torrent_info.get('remasterTitle'))
+            # Use remasterTitle if it exists and is not empty
+            remaster_title = torrent_info.get('remasterTitle', '').strip()
+            if remaster_title:
+                edition_parts.append(remaster_title)
 
         # Add sample rate info for resampled releases
         if resample:
@@ -567,6 +578,7 @@ def get_transcode_dir(flac_dir, output_dir, output_format, resample, group_info=
     final_name = re.sub(r'\s+', ' ', final_name)
 
     return os.path.join(output_dir, final_name)
+
 
 def transcode_release(
     flac_dir: str,
