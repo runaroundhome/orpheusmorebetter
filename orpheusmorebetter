@@ -521,6 +521,10 @@ def main():
         # FORMAT ANALYSIS
         # ====================================================================
         # Determine which formats need to be created
+        if flac_dir is None:
+            logger.warning("FLAC directory not found - skipping torrent {0}".format(torrentid))
+            continue
+            
         needed = formats_needed(group, torrent, supported_formats)
         logger.info("  Formats needed: {0}".format(", ".join(needed)))
 
