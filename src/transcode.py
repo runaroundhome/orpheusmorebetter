@@ -645,7 +645,6 @@ def transcode_release(
 
         # copy other files
         allowed_extensions = [
-            ".ac3",
             ".accurip",
             ".azw3",
             ".chm",
@@ -654,10 +653,8 @@ def transcode_release(
             ".djvu",
             ".doc",
             ".docx",
-            ".dts",
             ".epub",
             ".ffp",
-            ".flac",
             ".gif",
             ".htm",
             ".html",
@@ -669,12 +666,7 @@ def transcode_release(
             ".log",
             ".m3u",
             ".m3u8",
-            ".m4a",
-            ".m4b",
             ".md5",
-            ".mobi",
-            ".mp3",
-            ".mp4",
             ".nfo",
             ".pdf",
             ".pls",
