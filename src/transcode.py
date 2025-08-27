@@ -357,7 +357,7 @@ def transcode(flac_file, output_dir, output_format):
 
     # determine the new filename
     transcode_basename = path.splitext(os.path.basename(flac_file))[0]
-    transcode_basename = re.sub(r'[\?<>\\*\|":]', "_", transcode_basename)
+    transcode_basename = re.sub(r'[\?<>\\*\|":]', "", transcode_basename) # remove illegal characters
     transcode_file = path.join(output_dir, transcode_basename)
     transcode_file += encoders[output_format]["ext"]
 
