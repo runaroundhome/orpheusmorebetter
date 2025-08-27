@@ -37,6 +37,125 @@ class UnknownSampleRateException(TranscodeException):
     pass
 
 
+class ArtistAlbumMismatchException(TranscodeException):
+    pass
+
+
+def normalize_string_for_comparison(s):
+    """Normalize string for case-insensitive comparison by removing special chars and lowercasing"""
+    if not s:
+        return ""
+    # Remove common special characters and normalize whitespace
+    normalized = re.sub(r'[^\w\s]', '', s.strip().lower())
+    normalized = re.sub(r'\s+', ' ', normalized)
+    return normalized
+
+
+def validate_artist_album_match(flac_dir, group_info=None, torrent_info=None):
+    """
+    Validate that the artist and album in the FLAC files match the expected values
+    from the API data or directory structure.
+    
+    Args:
+        flac_dir: Directory containing FLAC files
+        group_info: Group information from API (optional)
+        torrent_info: Torrent information from API (optional)
+    
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    try:
+        # Get expected artist and album from API data if available
+        expected_artist = None
+        expected_album = None
+        
+        if group_info and torrent_info:
+            group = group_info.get("group", {})
+            expected_artist = (
+                group.get("musicInfo", {})
+                .get("artists", [{}])[0]
+                .get("name", "")
+            )
+            expected_album = group.get("name", "")
+            
+        # If no API data, try to extract from directory name
+        if not expected_artist or not expected_album:
+            LOGGER.info("No API data available, extracting from directory name")
+            dir_name = Path(flac_dir).name
+            # Try to parse directory name like "Artist - Album (Year) [extra info]"
+            match = re.match(r'^(.+?)\s*-\s*(.+?)(?:\s*\(\d{4}\))?(?:\s*\[.+?\])?(?:\s*\{.+?\})?$', dir_name)
+            if match:
+                expected_artist = match.group(1).strip()
+                expected_album = match.group(2).strip()
+            else:
+                LOGGER.warning("Could not parse artist/album from directory name, skipping validation")
+                return True, None
+        
+        if not expected_artist or not expected_album:
+            LOGGER.warning("No artist/album information available for validation")
+            return True, None
+            
+        # Normalize expected values
+        expected_artist_norm = normalize_string_for_comparison(expected_artist)
+        expected_album_norm = normalize_string_for_comparison(expected_album)
+        
+        LOGGER.info(f"Validating files against expected artist: '{expected_artist}', album: '{expected_album}'")
+        
+        # Check a few FLAC files to validate artist/album
+        flac_files = list(locate(flac_dir, ext_matcher(".flac")))
+        if not flac_files:
+            return False, "No FLAC files found in directory"
+            
+        # Sample up to 3 files for validation (don't need to check every file)
+        files_to_check = flac_files[:min(3, len(flac_files))]
+        
+        for flac_file in files_to_check:
+            try:
+                flac_info = mutagen.flac.FLAC(flac_file)
+                
+                # Get artist from file tags
+                file_artist = ""
+                if "artist" in flac_info:
+                    file_artist = flac_info["artist"][0] if flac_info["artist"] else ""
+                elif "albumartist" in flac_info:
+                    file_artist = flac_info["albumartist"][0] if flac_info["albumartist"] else ""
+                
+                # Get album from file tags  
+                file_album = ""
+                if "album" in flac_info:
+                    file_album = flac_info["album"][0] if flac_info["album"] else ""
+                
+                # Normalize file values
+                file_artist_norm = normalize_string_for_comparison(file_artist)
+                file_album_norm = normalize_string_for_comparison(file_album)
+                
+                # Compare normalized values
+                artist_match = file_artist_norm == expected_artist_norm
+                album_match = file_album_norm == expected_album_norm
+                
+                if not artist_match or not album_match:
+                    error_parts = []
+                    if not artist_match:
+                        error_parts.append(f"Artist mismatch - Expected: '{expected_artist}', Found: '{file_artist}'")
+                    if not album_match:
+                        error_parts.append(f"Album mismatch - Expected: '{expected_album}', Found: '{file_album}'")
+                    
+                    error_msg = f"File '{os.path.basename(flac_file)}': {'; '.join(error_parts)}"
+                    LOGGER.error(    error_msg)
+                    return False, error_msg
+                    
+            except Exception as e:
+                LOGGER.warning(f"Could not read tags from {flac_file}: {e}")
+                continue
+                
+        LOGGER.info("    Artist/album validation passed")
+        return True, None
+        
+    except Exception as e:
+        LOGGER.error(f"    Error during artist/album validation: {e}")
+        return False, f"    Validation error: {e}"
+
+
 # In most Unix shells, pipelines only report the return code of the
 # last process. We need to know if any process in the transcode
 # pipeline fails, not just the last one.
@@ -464,6 +583,12 @@ def transcode_release(
     output_dir = os.path.abspath(output_dir)
     flac_files = locate(flac_dir, ext_matcher(".flac"))
 
+    # Validate artist/album match before processing
+    LOGGER.info("    Validating artist/album information...")
+    is_valid, error_msg = validate_artist_album_match(flac_dir, group_info, torrent_info)
+    if not is_valid:
+        raise ArtistAlbumMismatchException(f"    Artist/album validation failed: {error_msg}")
+
     # check if we need to resample
     resample = needs_resampling(flac_dir)
 
@@ -473,7 +598,7 @@ def transcode_release(
         # do what the user expects.
         if output_dir != os.path.dirname(flac_dir):
             logging.info(
-                "Warning: no encode necessary, so files won't be placed in", output_dir
+                "    Warning: no encode necessary, so files won't be placed in", output_dir
             )
         return flac_dir
 
