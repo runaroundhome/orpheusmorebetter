@@ -54,6 +54,9 @@ class WhatAPI:
         endpoint: str = "https://orpheus.network/",
         totp: Optional[str] = None,
     ):
+        self.request_count = 0
+        self.window_start = time.time()
+
         self.browser = None
         self.username: str = username
         self.password: str = password
@@ -72,6 +75,8 @@ class WhatAPI:
         
         self._login()
         self.authkey = ""
+
+        time.sleep(self.min_sec_between_requests)
 
         ind_data = self.request_ajax("index", method="GET")
         try:
@@ -134,6 +139,20 @@ class WhatAPI:
         files: Any = None,
         **kwargs: Any,
     ) -> Any:
+        
+        # Extra safety buffer to avoid IP bans
+        time.sleep(1)
+        
+        # Track requests in 10-second windows
+        current_time = time.time()
+        if current_time - self.window_start >= 10:
+            self.request_count = 0
+            self.window_start = current_time
+        
+        self.request_count += 1
+        if self.request_count > 4:  # Leave margin for safety
+            LOGGER.warning(f"Approaching rate limit: {self.request_count} requests in current window")
+
         """Makes an AJAX request at a given action page"""
         time_since_last_req = time.time() - self.last_request
         if time_since_last_req < self.min_sec_between_requests:
