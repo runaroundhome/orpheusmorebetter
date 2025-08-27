@@ -585,7 +585,8 @@ def main():
                     # ========================================================
                     # Transcode FLAC to target format
                     transcode_dir = transcode.transcode_release(
-                        flac_dir, local_output_dir, format, max_threads=args.threads
+                        flac_dir, local_output_dir, format, max_threads=args.threads,
+                        group_info=group, torrent_info=torrent
                     )
                     
                     # Create torrent file

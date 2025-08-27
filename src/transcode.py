@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import errno
 import multiprocessing
+import sys
 import os
 import os.path as path
+from pathlib import Path
 import re
 import shlex
 import shutil
@@ -10,12 +12,10 @@ import signal
 import subprocess
 from typing import Any, Callable, Optional
 import logging
+import mutagen.flac
+from . import tagging
 
 LOGGER = logging.getLogger("transcode")
-
-import mutagen.flac
-
-from . import tagging
 
 encoders = {
     "320": {"enc": "lame", "ext": ".mp3", "opts": "-h -b 320 --ignore-tag-errors"},
@@ -87,9 +87,9 @@ def locate(root, match_function: Callable[[str], Any], ignore_dotfiles=True):
     """
     Yields all filenames within the root directory for which match_function returns True.
     """
-    for path, dirs, files in os.walk(root):
+    for dir_path, dirs, files in os.walk(root):
         for filename in (
-            os.path.abspath(os.path.join(path, filename))
+            os.path.abspath(os.path.join(dir_path, filename))
             for filename in files
             if match_function(filename)
         ):
@@ -280,125 +280,178 @@ def transcode(flac_file, output_dir, output_format):
     return transcode_file
 
 
-def get_transcode_dir(flac_dir, output_dir, output_format, resample) -> str:
-    full_flac_dir = flac_dir
-    transcode_dir = path.basename(flac_dir)
-    flac_dir = transcode_dir
-
-    def some_check(string: str):
-        return string in flac_dir.upper() and (
-            (flac_dir.upper().count("24") >= 2)
-            or (not any(s in flac_dir for s in some_numbers))
-        )
-
-    def replace_insensitive(pattern: str, replacement: str, source: str):
-        return re.sub(re.compile(pattern, re.I), replacement, source)
-
-    # This is what happens when you spend your time transcoding 24 bit to 16 for
-    # perfect FLACs.
-    some_numbers = ("44", "88", "176", "48", "96", "192")
-    list_of_flac = ["FLAC", "FLAC HD", "HD FLAC"]
-    list_of_24_flac = [
-        "FLAC 24-BIT",
-        "FLAC-24BIT",
-        "FLAC-24",
-        "FLAC 24BIT",
-        "FLAC 24 BIT",
-        "FLAC, 24BIT",
-        "FLAC, 24 BIT",
-        "FLAC, 24-BIT",
-        "FLAC 24",
-        "FLAC24",
-        "FLAC96",
-        "24-BIT FLAC",
-        "24-BIT LOSSLESS FLAC",
-        "24BIT FLAC",
-        "24 BIT FLAC",
-        "24FLAC",
-        "24 FLAC",
-        "24 BITS",
-        "24-BITS",
-        "24BITS",
-        "24BIT",
-        "24 BIT",
-        "24-BIT",
-    ]
-
-    # Track if we replaced a FLAC identifier with the format
-    format_replaced = False
-
-    for flac in list_of_flac:
-        if flac in flac_dir.upper():
-            transcode_dir = replace_insensitive(flac, output_format, transcode_dir)
-            format_replaced = True
-            break
-
-    for flac in list_of_24_flac:
-        if some_check(flac):
-            transcode_dir = replace_insensitive(flac, output_format, transcode_dir)
-            format_replaced = True
-            break
-
-    # Only append format in parentheses if we didn't already replace a FLAC identifier
-    if not format_replaced:
-        transcode_dir = f"{transcode_dir}({output_format})"
+def get_transcode_dir(flac_dir, output_dir, output_format, resample, group_info=None, torrent_info=None) -> str:
+    """
+    Create a compliant directory name following the site rules:
+    "Artist - Album (Year) [Catalog and edition info] {Media - Format}"
     
-    if output_format != "FLAC":
-        transcode_dir = replace_insensitive("FLAC", "", transcode_dir)
+    Args:
+        flac_dir: Source FLAC directory path
+        output_dir: Output directory for transcoded files
+        output_format: Target format (320, V0, V2, FLAC)
+        resample: Whether resampling is needed
+        group_info: Group information from API (optional, for proper naming)
+        torrent_info: Torrent information from API (optional, for proper naming)
+    """
 
-    if resample:
-        rate = resample_rate(full_flac_dir)
-        if rate == 44100:
-            if "24" in flac_dir and "176.4" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("176.4", "44")
-            elif "24" in flac_dir and "176 4" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("176 4", "44")
-            elif "24" in flac_dir and "176" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("176", "44")
-            elif "24" in flac_dir and "88.2" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("88.2", "44")
-            elif "24" in flac_dir and "88 2" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("88 2", "44")
-            elif "24" in flac_dir and "88" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("88", "44")
-            elif "24" in flac_dir and "44.1" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("44.1", "44")
-            elif "24" in flac_dir and "44 1" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("44 1", "44")
-            elif "24" in flac_dir and "44" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
+    # Get the original directory name as fallback
+    original_dir_name = Path(flac_dir).name
+    
+    # If we have API info, construct the proper name
+    if group_info and torrent_info:
+        group = group_info.get("group", {})
+        artist = (
+            group.get("musicInfo", {})
+            .get("artists", [{}])[0]
+            .get("name", "")
+        )
+        album = group.get("name", "")
+        year = group.get("year", "")
+        
+        # If artist is not found in group_info, try torrent_info???
+        # TODO: exist out, and I need to fix this issue
+        if not artist:
+            LOGGER.info("No artist found in group_info")
+            LOGGER.info(f"group_info: {group_info}")
+            LOGGER.info(f"torrent_info: {torrent_info}")
+            sys.exit(1)
+        
+        # Build base name: "Artist - Album (Year)"
+        base_name = f"{artist} - {album}"
+        if year:
+            base_name += f" ({year})"
+            
+        # Add edition info if this is a remaster
+        edition_parts = []
+        if torrent_info.get('remastered'):
+            if torrent_info.get('remasterTitle'):
+                edition_parts.append(torrent_info.get('remasterTitle'))
+
+        # Add sample rate info for resampled releases
+        if resample:
+            rate = resample_rate(flac_dir)
+            if rate == 44100:
+                edition_parts.append("16-44.1")
+            elif rate == 48000:
+                edition_parts.append("16-48")
+        
+        # Combine edition info
+        edition_info = ", ".join(edition_parts) if edition_parts else ""
+        
+        # Add media and format info
+        media = torrent_info.get('media', 'CD')
+                
+        # Construct final name following the rules
+        final_name = base_name
+        if edition_info:
+            final_name += f" [{edition_info}]"
+        final_name += f" {{{media} - {output_format}}}"
+
+    else:
+        # Fallback to cleaning up the existing directory name
+        final_name = original_dir_name
+        
+        # Remove common FLAC indicators and replace with target format
+        flac_patterns = [
+            r'\bFLAC\s*24[-\s]*BIT\b',
+            r'\bFLAC[-\s]*24BIT\b', 
+            r'\bFLAC[-\s]*24\b',
+            r'\b24[-\s]*BIT\s*FLAC\b',
+            r'\b24BIT\s*FLAC\b',
+            r'\b24\s*FLAC\b',
+            r'\bFLAC\s*HD\b',
+            r'\bHD\s*FLAC\b',
+            r'\bFLAC\b'
+        ]
+        
+        format_replaced = False
+        for pattern in flac_patterns:
+            if re.search(pattern, final_name, re.IGNORECASE):
+                # Map format for display
+                format_display = {
+                    "320": "320",
+                    "V0": "V0",
+                    "V2": "V2",
+                    "FLAC": "FLAC",
+                }.get(
+                    output_format,
+                    str(output_format) if output_format is not None else "",
+                )
+
+                final_name = re.sub(pattern, format_display, final_name, flags=re.IGNORECASE)
+                format_replaced = True
+                break
+        
+        # If no FLAC pattern was found, append format
+        if not format_replaced:
+            format_display = {
+                '320': '320',
+                'V0': 'V0',
+                'V2': 'V2', 
+                'FLAC': 'FLAC'
+            }.get(output_format, output_format)
+            
+            # Check if we already have media-format notation
+            if re.search(r'\{[^}]*\}$', final_name):
+                # Replace existing format
+                final_name = re.sub(r'\{[^}]*\}$', f'{{CD - {format_display}}}', final_name)
             else:
-                transcode_dir += " [16-44]"
-        elif rate == 48000:
-            if "24" in flac_dir and "192" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("192", "48")
-            elif "24" in flac_dir and "96" in flac_dir:
-                # XXX: theoretically, this could replace part of the album title too.
-                # e.g. "24 days in 96 castles - [24-96]" would become "16 days in 44 castles - [16-44]"
-                transcode_dir = transcode_dir.replace("24", "16")
-                transcode_dir = transcode_dir.replace("96", "48")
-            elif "24" in flac_dir and "48" in flac_dir:
-                transcode_dir = transcode_dir.replace("24", "16")
-            else:
-                transcode_dir += " [16-48]"
+                # Add format notation
+                final_name += f' {{CD - {format_display}}}'
+        
+        # Handle resampling info for fallback names
+        if resample:
+            rate = resample_rate(flac_dir)
+            sample_info = ""
+            if rate == 44100:
+                sample_info = "16-44.1"
+                # Replace high-res indicators
+                final_name = re.sub(r'\b24[-\s]*176\.?4?\b', '16-44.1', final_name)
+                final_name = re.sub(r'\b24[-\s]*88\.?2?\b', '16-44.1', final_name) 
+                final_name = re.sub(r'\b24[-\s]*44\.?1?\b', '16-44.1', final_name)
+                final_name = re.sub(r'\b24\b', '16', final_name)
+            elif rate == 48000:
+                sample_info = "16-48"
+                # Replace high-res indicators  
+                final_name = re.sub(r'\b24[-\s]*192\b', '16-48', final_name)
+                final_name = re.sub(r'\b24[-\s]*96\b', '16-48', final_name)
+                final_name = re.sub(r'\b24[-\s]*48\b', '16-48', final_name)
+                final_name = re.sub(r'\b24\b', '16', final_name)
+            
+            # Add sample rate info if not already present
+            if sample_info and sample_info not in final_name:
+                # Insert before format notation if present
+                if re.search(r'\{[^}]*\}$', final_name):
+                    final_name = re.sub(r'\{', f'[{sample_info}] {{', final_name)
+                else:
+                    final_name += f' [{sample_info}]'
+            LOGGER.info(f"final_name else: {final_name}")  # TODO
+            sys.exit(1)  # TODO
 
-    return os.path.join(output_dir, transcode_dir)
+    # Clean up the name
+    # Remove invalid characters for file systems
+    invalid_chars = r'[<>:"/\\|?*]'
+    final_name = re.sub(invalid_chars, '_', final_name)
+    
+    # Remove leading/trailing spaces and limit length
+    final_name = final_name.strip()
+    
+    # Ensure directory name isn't too long
+    if len(final_name) > 200:  # Leave room for file paths
+        final_name = final_name[:200].strip()
+    
+    # Remove any double spaces
+    final_name = re.sub(r'\s+', ' ', final_name)
 
+    return os.path.join(output_dir, final_name)
 
 def transcode_release(
     flac_dir: str,
     output_dir: str,
     output_format: str,
     max_threads: Optional[int] = None,
+    group_info: Optional[dict] = None,
+    torrent_info: Optional[dict] = None,
 ):
     """
     Transcode a FLAC release into another format.
