@@ -446,6 +446,9 @@ def main():
 
             if flac_file is None:
                 logger.warning("FLAC file not found - skipping torrent {0}".format(torrentid))
+                # Mark torrent as processed and update cache
+                seen.add(str(torrentid))
+                pickle.dump(seen, open(args.cache, "wb"))
                 continue
 
         else:
@@ -617,7 +620,7 @@ def main():
                         
                 except Exception as e:
                     logger.error("      Error adding format {0}: {1}".format(format, e))
-                    traceback.print_exc()
+                    # traceback.print_exc()
                 finally:
                     # Clean up temporary directory
                     shutil.rmtree(tmpdir)
