@@ -375,15 +375,13 @@ def main():
             ]
     else:
         # Use API to find candidates based on mode
-        if args.mode is None:
-            if mode == "none":
-                logger.info("No urls provided and scraping is disabled")
-            else:
-                candidates = api.get_candidates(mode, skip=seen, media=supported_media)
-        elif args.mode == "none":
+        # Determine which mode to use
+        effective_mode = args.mode if args.mode is not None else mode
+
+        if effective_mode == "none":
             logger.info("No urls provided and scraping is disabled")
         else:
-            candidates = api.get_candidates(args.mode, skip=seen, media=supported_media)
+            candidates = api.get_candidates(effective_mode, skip=seen, media=supported_media)
 
     # ========================================================================
     # MAIN PROCESSING LOOP
