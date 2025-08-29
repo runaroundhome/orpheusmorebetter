@@ -619,7 +619,7 @@ def main():
                         break
                         
                 except Exception as e:
-                    logger.error("      Error adding format {0}: {1}".format(format, e))
+                    logger.error("   Error adding format {0}: {1}".format(format, e))
                     # traceback.print_exc()
                 finally:
                     # Clean up temporary directory
