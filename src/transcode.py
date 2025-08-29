@@ -134,18 +134,24 @@ def validate_artist_album_match(flac_dir, group_info=None, torrent_info=None):
                 album_match = file_album_norm == expected_album_norm
                 
                 if not artist_match or not album_match:
-                    error_parts = []
+                    filename = os.path.basename(flac_file)
                     if not artist_match:
-                        error_parts.append(f"Artist mismatch - Expected: '{expected_artist}', Found: '{file_artist}'")
+                        LOGGER.error(f"   Artist mismatch in '{filename}':")
+                        LOGGER.error(f"    Expected: {expected_artist}")
+                        LOGGER.error(f"    Found:    {file_artist}")
+                        error_msg = f"   Artist mismatch in '{filename}'"
                     if not album_match:
-                        error_parts.append(f"Album mismatch - Expected: '{expected_album}', Found: '{file_album}'")
+                        LOGGER.error(f"   Album mismatch in '{filename}':")
+                        LOGGER.error(f"    Expected: {expected_album}")
+                        LOGGER.error(f"    Found:    {file_album}")
+                        error_msg = f"   Album mismatch in '{filename}'"
+                    if not artist_match and not album_match:
+                        error_msg = f"Artist/album mismatch in '{filename}'"
                     
-                    error_msg = f"File '{os.path.basename(flac_file)}': {'; '.join(error_parts)}"
-                    LOGGER.error(    error_msg)
                     return False, error_msg
                     
             except Exception as e:
-                LOGGER.warning(f"Could not read tags from {flac_file}: {e}")
+                LOGGER.warning(f"   Could not read tags from {flac_file}: {e}")
                 continue
                 
         LOGGER.info("    Artist/album validation passed")
@@ -482,6 +488,8 @@ def get_transcode_dir(flac_dir, output_dir, output_format, resample, group_info=
         final_name += f" {{{media} - {output_format}}}"
 
     else:
+        LOGGER.warning("    No group_info or torrent_info provided, using fallback naming")
+        
         # Fallback to cleaning up the existing directory name
         final_name = original_dir_name
         
@@ -559,9 +567,14 @@ def get_transcode_dir(flac_dir, output_dir, output_format, resample, group_info=
                     final_name = re.sub(r'\{', f'[{sample_info}] {{', final_name)
                 else:
                     final_name += f' [{sample_info}]'
-            LOGGER.info(f"final_name else: {final_name}")  # TODO
-            sys.exit(1)  # TODO
-
+                    LOGGER.error(f"--->> final_name else: {final_name}")  # TODO
+                    LOGGER.error(f"output_dir: {output_dir}")  # TODO
+                    LOGGER.error(f"flac_dir: {flac_dir}")  # TODO
+                    LOGGER.error(f"original_dir_name: {original_dir_name}")  # TODO
+                    LOGGER.error(f"group_info: {group_info}")  # TODO
+                    LOGGER.error(f"torrent_info: {torrent_info}")  # TODO
+                    sys.exit(1)  # TODO
+    
     # Clean up the name
     # Replace forward slash with dash, remove other invalid characters
     final_name = re.sub(r'/', '-', final_name)  # Replace / with -
@@ -600,7 +613,7 @@ def transcode_release(
     LOGGER.info("    Validating artist/album information...")
     is_valid, error_msg = validate_artist_album_match(flac_dir, group_info, torrent_info)
     if not is_valid:
-        raise ArtistAlbumMismatchException(f"    Artist/album validation failed: {error_msg}")
+        raise ArtistAlbumMismatchException(f"Artist/album validation failed: {error_msg}")
 
     # check if we need to resample
     resample = needs_resampling(flac_dir)
