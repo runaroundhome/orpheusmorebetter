@@ -547,13 +547,11 @@ def main():
                     flac_file, check_tracknumber_format=False
                 )
                 if not ok:
-                    logger.error(
-                        "A FLAC file in this release has unacceptable tags - skipping: {0}".format(
-                            msg
-                        )
-                    )
+                    logger.error("A FLAC file in this release has unacceptable tags - skipping: {0}".format(msg))
                     logger.error("You might be able to trump it.")
                     broken_tags = True
+                    seen.add(str(torrentid))
+                    pickle.dump(seen, open(args.cache, "wb"))
                     break
             if broken_tags:
                 continue
