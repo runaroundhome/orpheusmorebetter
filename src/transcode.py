@@ -563,9 +563,10 @@ def get_transcode_dir(flac_dir, output_dir, output_format, resample, group_info=
             sys.exit(1)  # TODO
 
     # Clean up the name
-    # Remove invalid characters for file systems
+    # Replace forward slash with dash, remove other invalid characters
+    final_name = re.sub(r'/', '-', final_name)  # Replace / with -
     invalid_chars = r'[<>:"/\\|?*]'
-    final_name = re.sub(invalid_chars, '_', final_name)
+    final_name = re.sub(invalid_chars, '', final_name)
     
     # Remove leading/trailing spaces and limit length
     final_name = final_name.strip()
