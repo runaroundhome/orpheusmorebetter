@@ -396,9 +396,13 @@ def main():
         # Basic check if scene (skip if scene release)
         if torrent and torrent.get("scene"):
             logger.warning("This release is scene, skipping.")
+            seen.add(str(torrentid))
+            pickle.dump(seen, open(args.cache, "wb"))
             continue
         if torrent and torrent.get("reported"):
             logger.warning("This release has been reported! Skipping.")
+            seen.add(str(torrentid))
+            pickle.dump(seen, open(args.cache, "wb"))
             continue
         
         # Log release information
