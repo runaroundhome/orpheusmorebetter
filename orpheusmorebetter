@@ -479,6 +479,8 @@ def main():
 
             if flac_dir is None:
                 logger.warning("FLAC directory not found - skipping torrent {0}".format(torrentid))
+                seen.add(str(torrentid))
+                pickle.dump(seen, open(args.cache, "wb"))
                 continue
 
         # ====================================================================
@@ -499,6 +501,8 @@ def main():
                     # Handle 24-bit files that are mislabeled as 16-bit
                     if args.no_24bit_edit:
                         logger.warning("Release is actually 24-bit lossless, skipping.")
+                        seen.add(str(torrentid))
+                        pickle.dump(seen, open(args.cache, "wb"))
                         continue
                     if int(do_24_bit) == 1:
                         confirmation = input("Mark release as 24bit lossless? y/n: ")
@@ -514,6 +518,8 @@ def main():
                 logger.error(
                     "Error: can't edit 24-bit torrent - skipping: {0}".format(e)
                 )
+                seen.add(str(torrentid))
+                pickle.dump(seen, open(args.cache, "wb"))
                 continue
 
         # ====================================================================
@@ -521,9 +527,9 @@ def main():
         # ====================================================================
         # Skip multichannel releases as they're not supported
         if transcode.is_multichannel(flac_dir):
-            logger.warning(
-                "This is a multichannel release, which is unsupported - skipping"
-            )
+            logger.warning( "This is a multichannel release, which is unsupported - skipping")
+            seen.add(str(torrentid))
+            pickle.dump(seen, open(args.cache, "wb"))
             continue
 
         # ====================================================================
@@ -532,6 +538,8 @@ def main():
         # Determine which formats need to be created
         if flac_dir is None:
             logger.warning("FLAC directory not found - skipping torrent {0}".format(torrentid))
+            seen.add(str(torrentid))
+            pickle.dump(seen, open(args.cache, "wb"))
             continue
             
         needed = formats_needed(group, torrent, supported_formats)
@@ -629,6 +637,8 @@ def main():
                     shutil.rmtree(tmpdir)
             else:
                 logger.warning("    Path not found - skipping: {0}".format(flac_dir))
+                seen.add(str(torrentid))
+                pickle.dump(seen, open(args.cache, "wb"))
                 break
         
         # ====================================================================
